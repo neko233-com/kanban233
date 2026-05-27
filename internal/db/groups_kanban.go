@@ -57,12 +57,12 @@ func (s *Store) seedMyProjectWelcome(ctx context.Context, ownerID int64) error {
 			return nil
 		}
 		todoCol := detail.Columns[0].ID
-		starter := []struct{ title, desc string }{
-			{"欢迎使用 Kanban233", "左侧选择项目组即可直接进入看板，一个项目对应一个看板。"},
-			{"创建第一张任务卡片", "点击下方「+ 添加卡片」，或拖拽任务到不同列。"},
+		starter := []struct{ title, desc, workers string }{
+			{"欢迎使用 Kanban233", "左侧选择项目组即可直接进入看板，一个项目对应一个看板。", "LiLei"},
+			{"创建第一张任务卡片", "点击下方「+ 添加卡片」，或拖拽任务到不同列。", "XiaHe"},
 		}
 		for _, c := range starter {
-			if _, err := s.CreateCard(ctx, todoCol, ownerID, models.CreateCardRequest{Title: c.title, Description: c.desc}); err != nil {
+			if _, err := s.CreateCard(ctx, todoCol, ownerID, models.CreateCardRequest{Title: c.title, Description: c.desc, Workers: c.workers}); err != nil {
 				return err
 			}
 		}

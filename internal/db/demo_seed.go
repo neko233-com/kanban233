@@ -48,17 +48,27 @@ func (s *Store) seedGettingStartedDemo(ctx context.Context, ownerID int64) error
 	todoCol := board.Columns[0].ID
 	doingCol := board.Columns[1].ID
 	cards := []struct {
-		columnID int64
-		title    string
-		desc     string
+		columnID  int64
+		title     string
+		desc      string
+		workers   string
+		startDate string
+		endDate   string
 	}{
-		{todoCol, "① 点击卡片可编辑", "单击看板上的卡片，修改标题与描述后保存。"},
-		{todoCol, "② 拖拽卡片换列", "将卡片从「待办」拖到「进行中」，体验 Kanban 流转。"},
-		{todoCol, "③ 完结并查历史", "拖入底部归档区或点「完结」，在「完结历史」中可追溯。"},
-		{doingCol, "【示例】50% 进行中的任务", "带【分类】与进度的标题，便于 Agent 日报识别。"},
+		{todoCol, "① 点击卡片可编辑", "单击看板上的卡片，修改标题与描述后保存。", "LiLei", "", ""},
+		{todoCol, "② 拖拽卡片换列", "将卡片从「待办」拖到「进行中」，体验 Kanban 流转。", "XiaHe", "", ""},
+		{todoCol, "③ 完结并查历史", "拖入底部归档区或点「归档」，在「归档历史」中可追溯。", "LiLei, XiaHe", "", ""},
+		{doingCol, "【示例】50% 进行中的任务", "带【分类】与进度的标题，便于 Agent 日报识别。", "XiaHe", "", ""},
 	}
 	for _, c := range cards {
-		if _, err := s.CreateCard(ctx, c.columnID, ownerID, models.CreateCardRequest{Title: c.title, Description: c.desc}); err != nil {
+		req := models.CreateCardRequest{Title: c.title, Description: c.desc, Workers: c.workers}
+		if c.startDate != "" {
+			req.StartDate = &c.startDate
+		}
+		if c.endDate != "" {
+			req.EndDate = &c.endDate
+		}
+		if _, err := s.CreateCard(ctx, c.columnID, ownerID, req); err != nil {
 			return err
 		}
 	}
@@ -80,17 +90,27 @@ func (s *Store) seedAICollabDemo(ctx context.Context, ownerID int64) error {
 	todoCol := board.Columns[0].ID
 	doingCol := board.Columns[1].ID
 	cards := []struct {
-		columnID int64
-		title    string
-		desc     string
+		columnID  int64
+		title     string
+		desc      string
+		workers   string
+		startDate string
+		endDate   string
 	}{
-		{doingCol, "【AI】80% 接入 MCP 工具链", "外部 Agent 可通过 X-Agent-Token 读写任务。"},
-		{doingCol, "【后端】100% 操作日志导出", "支持 JSON / CSV 导出审计记录。"},
-		{todoCol, "【前端】优化 Apple 风格 UI", "修改 web/styles.css 后开发模式自动热重载。"},
-		{todoCol, "明天：验证日报 Markdown 格式", "GET /api/agent/daily-report.md?date=YYYY-MM-DD"},
+		{doingCol, "【AI】80% 接入 MCP 工具链", "外部 Agent 可通过 X-Agent-Token 读写任务。", "LiLei", "2026-05-01", "2026-05-20"},
+		{doingCol, "【后端】100% 操作日志导出", "支持 JSON / CSV 导出审计记录。", "XiaHe", "2026-05-10", "2026-05-27"},
+		{todoCol, "【前端】优化 Apple 风格 UI", "修改 web/styles.css 后开发模式自动热重载。", "LiLei, XiaHe", "2026-05-15", "2026-06-01"},
+		{todoCol, "明天：验证日报 Markdown 格式", "GET /api/agent/daily-report.md?date=YYYY-MM-DD", "XiaHe", "2026-05-28", "2026-05-29"},
 	}
 	for _, c := range cards {
-		if _, err := s.CreateCard(ctx, c.columnID, ownerID, models.CreateCardRequest{Title: c.title, Description: c.desc}); err != nil {
+		req := models.CreateCardRequest{Title: c.title, Description: c.desc, Workers: c.workers}
+		if c.startDate != "" {
+			req.StartDate = &c.startDate
+		}
+		if c.endDate != "" {
+			req.EndDate = &c.endDate
+		}
+		if _, err := s.CreateCard(ctx, c.columnID, ownerID, req); err != nil {
 			return err
 		}
 	}

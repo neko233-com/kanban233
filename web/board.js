@@ -44,7 +44,7 @@ function showResearchView() {
   $('#projects-pane').classList.add('hidden');
   $('#projects-sidebar').classList.add('hidden');
   $('.workspace').classList.add('research-mode');
-  loadResearchOverview();
+  loadResearchOverview().then(() => refreshChartLayout());
 }
 
 function showProjectsView() {
@@ -55,6 +55,7 @@ function showProjectsView() {
   if (state.currentGroup && state.currentBoard) {
     $('#project-empty').classList.add('hidden');
     $('#board-view').classList.remove('hidden');
+    refreshChartLayout();
   } else {
     showProjectEmpty();
   }
@@ -80,54 +81,62 @@ function fuzzyMatch(text, query) {
 }
 
 async function loadResearchOverview() {
-  const data = await api('/api/research/overview');
-  const s = data.summary;
-  $('#research-summary').innerHTML = `
-    <span class="stat-pill"><span class="stat-value">${s.active_cards}</span><span class="stat-label">进行中</span></span>
-    <span class="stat-pill"><span class="stat-value">${s.completed_cards}</span><span class="stat-label">已归档/完结</span></span>
-    <span class="stat-pill"><span class="stat-value">${s.project_groups}</span><span class="stat-label">项目组</span></span>
-    <span class="stat-pill"><span class="stat-value">${s.boards}</span><span class="stat-label">看板</span></span>`;
-  loadResearchStats();
   const box = $('#research-content');
-  box.innerHTML = '';
-  data.groups.forEach((gv) => {
-    const section = document.createElement('section');
-    section.className = 'research-group';
-    const joinLabel = gv.group.join_mode === 'apply' ? '申请加入' : '自由加入';
-    const visBadge = gv.group.is_public
-      ? '<span class="badge public">公开</span>'
-      : '<span class="badge private">私有</span>';
-    section.innerHTML = `<div class="research-group-head">
-      <h3>${escapeHtml(gv.group.name)}</h3>
-      <div class="badge-row">${visBadge}<span class="badge neutral">${joinLabel}</span></div>
-    </div>`;
-    gv.boards.forEach((bv) => {
-      const boardBlock = document.createElement('div');
-      boardBlock.className = 'research-board';
-      const cardCount = bv.active_cards.length;
-      boardBlock.innerHTML = `<h4>${escapeHtml(gv.group.name)} <span class="muted">(${cardCount} 进行中)</span></h4>`;
-      const list = document.createElement('ul');
-      list.className = 'research-cards';
-      bv.active_cards.forEach((c) => {
-        const li = document.createElement('li');
-        li.textContent = c.title;
-        li.addEventListener('click', async () => {
-          document.querySelector('[data-view="projects"]').click();
-          await selectGroup(gv.group.id);
+  try {
+    const data = await api('/api/research/overview');
+    const s = data.summary;
+    $('#research-summary').innerHTML = `
+      <span class="stat-pill"><span class="stat-value">${s.active_cards}</span><span class="stat-label">进行中</span></span>
+      <span class="stat-pill"><span class="stat-value">${s.completed_cards}</span><span class="stat-label">已归档/完结</span></span>
+      <span class="stat-pill"><span class="stat-value">${s.project_groups}</span><span class="stat-label">项目组</span></span>
+      <span class="stat-pill"><span class="stat-value">${s.boards}</span><span class="stat-label">看板</span></span>`;
+    box.innerHTML = '';
+    (data.groups || []).forEach((gv) => {
+      const section = document.createElement('section');
+      section.className = 'research-group';
+      const joinLabel = gv.group.join_mode === 'apply' ? '申请加入' : '自由加入';
+      const visBadge = gv.group.is_public
+        ? '<span class="badge public">公开</span>'
+        : '<span class="badge private">私有</span>';
+      section.innerHTML = `<div class="research-group-head">
+        <h3>${escapeHtml(gv.group.name)}</h3>
+        <div class="badge-row">${visBadge}<span class="badge neutral">${joinLabel}</span></div>
+      </div>`;
+      (gv.boards || []).forEach((bv) => {
+        const boardBlock = document.createElement('div');
+        boardBlock.className = 'research-board';
+        const cardCount = (bv.active_cards || []).length;
+        boardBlock.innerHTML = `<h4>${escapeHtml(gv.group.name)} <span class="muted">(${cardCount} 进行中)</span></h4>`;
+        const list = document.createElement('ul');
+        list.className = 'research-cards';
+        (bv.active_cards || []).forEach((c) => {
+          const li = document.createElement('li');
+          const worker = c.workers ? `<span class="research-worker">${escapeHtml(c.workers)}</span>` : '';
+          li.innerHTML = `<span class="research-card-title">${escapeHtml(c.title)}</span>${worker}`;
+          li.addEventListener('click', async () => {
+            document.querySelector('[data-view="projects"]').click();
+            await selectGroup(gv.group.id);
+          });
+          list.appendChild(li);
         });
-        list.appendChild(li);
+        if (!bv.active_cards?.length) {
+          list.innerHTML = '<li class="muted">暂无进行中任务</li>';
+        }
+        boardBlock.appendChild(list);
+        section.appendChild(boardBlock);
       });
-      if (!bv.active_cards.length) {
-        list.innerHTML = '<li class="muted">暂无进行中任务</li>';
+      if (!gv.boards?.length) {
+        section.innerHTML += '<p class="muted">暂无看板</p>';
       }
-      boardBlock.appendChild(list);
-      section.appendChild(boardBlock);
+      box.appendChild(section);
     });
-    if (!gv.boards.length) {
-      section.innerHTML += '<p class="muted">暂无看板</p>';
+    if (!data.groups?.length) {
+      box.innerHTML = '<p class="muted">暂无项目组，请在「项目组看板」中创建</p>';
     }
-    box.appendChild(section);
-  });
+  } catch (err) {
+    box.innerHTML = `<p class="muted">加载失败：${escapeHtml(err.message || '未知错误')}</p>`;
+  }
+  await loadResearchStats();
 }
 
 async function loadGroups() {
@@ -201,14 +210,14 @@ async function selectGroup(groupId) {
     state.currentGroup = state.groups.find((g) => g.id === groupId) || null;
   }
   renderGroups();
-  showProjectsView();
   try {
     state.currentBoard = await api(`/api/groups/${groupId}/kanban`);
     updateGroupToolbar();
-    renderBoard();
-    await loadGroupStats();
     $('#project-empty').classList.add('hidden');
     $('#board-view').classList.remove('hidden');
+    renderBoard();
+    await loadGroupStats();
+    refreshChartLayout();
   } catch (err) {
     uiToast(err.message || '无法打开看板', { type: 'error' });
     showProjectEmpty();
@@ -279,9 +288,35 @@ function disposeChart(id) {
 function ensureChart(id) {
   const el = document.getElementById(id);
   if (!el || typeof echarts === 'undefined') return null;
-  disposeChart(id);
-  state.charts[id] = echarts.init(el, null, { renderer: 'canvas' });
+  if (!state.charts[id]) {
+    state.charts[id] = echarts.init(el, null, { renderer: 'canvas' });
+  }
   return state.charts[id];
+}
+
+function refreshChartLayout() {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      Object.values(state.charts).forEach((c) => {
+        try { c.resize(); } catch { /* ignore */ }
+      });
+    });
+  });
+}
+
+function whenChartVisible(id, fn, attempt = 0) {
+  const el = document.getElementById(id);
+  if (el && el.offsetWidth > 0 && el.offsetHeight > 0) {
+    fn();
+    refreshChartLayout();
+    return;
+  }
+  if (attempt >= 30) {
+    fn();
+    refreshChartLayout();
+    return;
+  }
+  requestAnimationFrame(() => whenChartVisible(id, fn, attempt + 1));
 }
 
 const chartBase = {
@@ -290,73 +325,77 @@ const chartBase = {
 };
 
 function renderWorkerChart(id, rows, title) {
-  const chart = ensureChart(id);
-  if (!chart) return;
-  const data = (rows || []).slice(0, 12).map((w) => ({
-    name: w.name,
-    value: w.total,
-    active: w.active,
-    finished: w.finished,
-  }));
-  chart.setOption({
-    ...chartBase,
-    title: { text: title || '工作人员', left: 8, top: 4, textStyle: { color: '#ebebf5', fontSize: 13, fontWeight: 600 } },
-    tooltip: {
-      trigger: 'item',
-      formatter: (p) => `${p.name}<br/>总计 ${p.value}（进行中 ${p.data.active} / 已结束 ${p.data.finished}）`,
-    },
-    series: [{
-      type: 'pie',
-      radius: ['42%', '68%'],
-      center: ['50%', '58%'],
-      itemStyle: { borderRadius: 6, borderColor: '#1c1c1e', borderWidth: 2 },
-      label: { color: '#98989d', fontSize: 11 },
-      data: data.length ? data : [{ name: '暂无数据', value: 1, itemStyle: { color: '#3a3a3c' } }],
-    }],
+  whenChartVisible(id, () => {
+    const chart = ensureChart(id);
+    if (!chart) return;
+    const data = (rows || []).slice(0, 12).map((w) => ({
+      name: w.name,
+      value: w.total,
+      active: w.active,
+      finished: w.finished,
+    }));
+    chart.setOption({
+      ...chartBase,
+      title: { text: title || '工作人员', left: 8, top: 4, textStyle: { color: '#ebebf5', fontSize: 13, fontWeight: 600 } },
+      tooltip: {
+        trigger: 'item',
+        formatter: (p) => `${p.name}<br/>总计 ${p.value}（进行中 ${p.data.active} / 已结束 ${p.data.finished}）`,
+      },
+      series: [{
+        type: 'pie',
+        radius: ['42%', '68%'],
+        center: ['50%', '58%'],
+        itemStyle: { borderRadius: 6, borderColor: '#1c1c1e', borderWidth: 2 },
+        label: { color: '#98989d', fontSize: 11 },
+        data: data.length ? data : [{ name: '暂无数据', value: 1, itemStyle: { color: '#3a3a3c' } }],
+      }],
+    }, true);
   });
 }
 
 function renderColumnChart(id, rows) {
-  const chart = ensureChart(id);
-  if (!chart) return;
-  const labels = (rows || []).map((r) => r.column);
-  const values = (rows || []).map((r) => r.count);
-  chart.setOption({
-    ...chartBase,
-    title: { text: '列分布（进行中）', left: 8, top: 4, textStyle: { color: '#ebebf5', fontSize: 13, fontWeight: 600 } },
-    grid: { left: 48, right: 16, top: 40, bottom: 28 },
-    xAxis: { type: 'category', data: labels.length ? labels : ['—'], axisLabel: { color: '#98989d', fontSize: 11 } },
-    yAxis: { type: 'value', minInterval: 1, splitLine: { lineStyle: { color: '#2c2c2e' } }, axisLabel: { color: '#98989d' } },
-    series: [{ type: 'bar', data: values.length ? values : [0], itemStyle: { color: '#0a84ff', borderRadius: [4, 4, 0, 0] }, barMaxWidth: 36 }],
-    tooltip: { trigger: 'axis' },
+  whenChartVisible(id, () => {
+    const chart = ensureChart(id);
+    if (!chart) return;
+    const labels = (rows || []).map((r) => r.column);
+    const values = (rows || []).map((r) => r.count);
+    chart.setOption({
+      ...chartBase,
+      title: { text: '列分布（进行中）', left: 8, top: 4, textStyle: { color: '#ebebf5', fontSize: 13, fontWeight: 600 } },
+      grid: { left: 48, right: 16, top: 40, bottom: 28 },
+      xAxis: { type: 'category', data: labels.length ? labels : ['—'], axisLabel: { color: '#98989d', fontSize: 11 } },
+      yAxis: { type: 'value', minInterval: 1, splitLine: { lineStyle: { color: '#2c2c2e' } }, axisLabel: { color: '#98989d' } },
+      series: [{ type: 'bar', data: values.length ? values : [0], itemStyle: { color: '#0a84ff', borderRadius: [4, 4, 0, 0] }, barMaxWidth: 36 }],
+      tooltip: { trigger: 'axis' },
+    }, true);
   });
 }
 
 function renderStatusChart(id, rows) {
-  const chart = ensureChart(id);
-  if (!chart) return;
-  const data = (rows || []).filter((r) => r.count > 0).map((r) => ({
-    name: STATUS_LABELS[r.status] || r.status,
-    value: r.count,
-  }));
-  const colors = { 进行中: '#0a84ff', 已归档: '#ff9f0a', 已完结: '#30d158' };
-  chart.setOption({
-    ...chartBase,
-    title: { text: '任务状态', left: 8, top: 4, textStyle: { color: '#ebebf5', fontSize: 13, fontWeight: 600 } },
-    tooltip: { trigger: 'item' },
-    series: [{
-      type: 'pie',
-      radius: '58%',
-      center: ['50%', '58%'],
-      data: data.length ? data.map((d) => ({ ...d, itemStyle: { color: colors[d.name] } })) : [{ name: '暂无', value: 1, itemStyle: { color: '#3a3a3c' } }],
-      label: { color: '#98989d' },
-    }],
+  whenChartVisible(id, () => {
+    const chart = ensureChart(id);
+    if (!chart) return;
+    const data = (rows || []).filter((r) => r.count > 0).map((r) => ({
+      name: STATUS_LABELS[r.status] || r.status,
+      value: r.count,
+    }));
+    const colors = { 进行中: '#0a84ff', 已归档: '#ff9f0a', 已完结: '#30d158' };
+    chart.setOption({
+      ...chartBase,
+      title: { text: '任务状态', left: 8, top: 4, textStyle: { color: '#ebebf5', fontSize: 13, fontWeight: 600 } },
+      tooltip: { trigger: 'item' },
+      series: [{
+        type: 'pie',
+        radius: '58%',
+        center: ['50%', '58%'],
+        data: data.length ? data.map((d) => ({ ...d, itemStyle: { color: colors[d.name] } })) : [{ name: '暂无', value: 1, itemStyle: { color: '#3a3a3c' } }],
+        label: { color: '#98989d' },
+      }],
+    }, true);
   });
 }
 
-window.addEventListener('resize', () => {
-  Object.values(state.charts).forEach((c) => c.resize());
-});
+window.addEventListener('resize', () => refreshChartLayout());
 
 function updateGroupToolbar() {
   const g = state.currentGroup;

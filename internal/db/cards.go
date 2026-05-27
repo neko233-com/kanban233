@@ -11,6 +11,7 @@ import (
 )
 
 const cardSelectCols = `id, column_id, title, description, workers, start_date, end_date, position, status, completed_at, created_at, updated_at`
+const cardSelectColsC = `c.id, c.column_id, c.title, c.description, c.workers, c.start_date, c.end_date, c.position, c.status, c.completed_at, c.created_at, c.updated_at`
 
 func finishedCardStatuses() []string {
 	return []string{models.CardStatusCompleted, models.CardStatusArchived}

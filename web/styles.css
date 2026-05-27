@@ -719,6 +719,21 @@ dialog select:focus {
   cursor: pointer;
   font-size: 14px;
   transition: background 0.15s var(--ease);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+}
+
+.research-card-title { flex: 1 1 auto; min-width: 0; }
+
+.research-worker {
+  font-size: 11px;
+  padding: 0.12rem 0.4rem;
+  border-radius: 6px;
+  background: rgba(10, 132, 255, 0.15);
+  color: var(--tint);
+  white-space: nowrap;
 }
 
 .research-cards li:hover { background: var(--bg-tertiary); }

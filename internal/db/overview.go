@@ -46,7 +46,7 @@ func (s *Store) GetResearchOverview(ctx context.Context, userID int64) (*models.
 
 func (s *Store) listActiveCardsByBoard(ctx context.Context, boardID int64) ([]models.Card, error) {
 	rows, err := s.db.QueryContext(ctx, s.q(`
-SELECT `+cardSelectCols+`
+SELECT `+cardSelectColsC+`
 FROM cards c
 JOIN columns col ON col.id = c.column_id
 WHERE col.board_id = ? AND c.status = ?

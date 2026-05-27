@@ -37,5 +37,8 @@ func (s *Store) seedPostInstall(ctx context.Context, ownerID int64) error {
 	if err := s.EnsureAllGroupsHaveKanban(ctx, ownerID); err != nil {
 		return err
 	}
-	return s.seedMyProjectWelcome(ctx, ownerID)
+	if err := s.seedMyProjectWelcome(ctx, ownerID); err != nil {
+		return err
+	}
+	return s.seedDemoCardWorkers(ctx, ownerID)
 }
