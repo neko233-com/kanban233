@@ -24,7 +24,7 @@ cmd/kanban/main.go
 internal/config/ db/ auth/ api/ server/
 web/login.html  web/board.html  web/common.js  web/auth.js  web/board.js
 server.yaml
-build.cmd  run-dev.cmd  test.cmd
+build.cmd  run-dev.cmd  test.cmd  deploy-to-github.cmd  git-auto-up.cmd
 Dockerfile  docker-compose.yml  docker-deploy-image.ps1  Jenkinsfile  .github/workflows/ci.yml
 README.md  README-CN.md
 ```
@@ -109,6 +109,8 @@ Export JSON fields: `export_version`, `export_type`, `exported_at`, `exported_by
 run-dev.cmd    # http://localhost:61333，web 热重载（KANBAN_DEV=1）
 test.cmd
 build.cmd
+deploy-to-github.cmd              # 测试通过后 commit + push 到 origin
+deploy-to-github.cmd 修复说明     # 自定义 commit message
 ```
 
 ## CI/CD
