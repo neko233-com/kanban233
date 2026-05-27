@@ -7,21 +7,23 @@ import (
 	"time"
 
 	"github.com/neko233/kanban233/internal/agent"
+	"github.com/neko233/kanban233/internal/locale"
 	"github.com/neko233/kanban233/internal/models"
 )
 
 type cardRow struct {
-	ID          int64
-	Title       string
-	Description string
-	AssigneeID  sql.NullInt64
-	OwnerID     int64
-	Username    string
-	BoardTitle  string
-	GroupName   string
-	ColumnTitle string
-	UpdatedAt   time.Time
-	CompletedAt sql.NullTime
+	ID            int64
+	Title         string
+	Description   string
+	AssigneeID    sql.NullInt64
+	OwnerID       int64
+	Username      string
+	BoardTitle    string
+	GroupName     string
+	ColumnTitle   string
+	ColumnPosition int
+	UpdatedAt     time.Time
+	CompletedAt   sql.NullTime
 }
 
 func (s *Store) GetAgentCollaboration(ctx context.Context, day time.Time, filterUser string) (*models.AgentCollaborationDay, error) {
@@ -31,7 +33,7 @@ func (s *Store) GetAgentCollaboration(ctx context.Context, day time.Time, filter
 	completed, err := s.queryAgentCards(ctx, `
 SELECT c.id, c.title, c.description, c.assignee_id, b.owner_id,
        COALESCE(au.username, ou.username) AS username,
-       b.title, g.name, col.title, c.updated_at, c.completed_at
+       b.title, g.name, col.title, col.position, c.updated_at, c.completed_at
 FROM cards c
 JOIN columns col ON col.id = c.column_id
 JOIN boards b ON b.id = col.board_id
@@ -47,7 +49,7 @@ ORDER BY c.completed_at ASC`, models.CardStatusCompleted, start, end)
 	inProgress, err := s.queryAgentCards(ctx, `
 SELECT c.id, c.title, c.description, c.assignee_id, b.owner_id,
        COALESCE(au.username, ou.username) AS username,
-       b.title, g.name, col.title, c.updated_at, c.completed_at
+       b.title, g.name, col.title, col.position, c.updated_at, c.completed_at
 FROM cards c
 JOIN columns col ON col.id = c.column_id AND col.is_done = 0
 JOIN boards b ON b.id = col.board_id
@@ -56,16 +58,16 @@ JOIN users ou ON ou.id = b.owner_id
 LEFT JOIN users au ON au.id = c.assignee_id
 WHERE c.status = ? AND c.updated_at >= ? AND c.updated_at < ?
 AND (c.completed_at IS NULL OR c.completed_at >= ?)
-AND (col.title LIKE '%进行%' OR col.title LIKE '%Doing%' OR col.title LIKE '%doing%')
 ORDER BY c.updated_at ASC`, models.CardStatusActive, start, end, end)
 	if err != nil {
 		return nil, err
 	}
+	inProgress = filterAgentRows(inProgress, agent.IsInProgressColumn)
 
 	tomorrow, err := s.queryAgentCards(ctx, `
 SELECT c.id, c.title, c.description, c.assignee_id, b.owner_id,
        COALESCE(au.username, ou.username) AS username,
-       b.title, g.name, col.title, c.updated_at, c.completed_at
+       b.title, g.name, col.title, col.position, c.updated_at, c.completed_at
 FROM cards c
 JOIN columns col ON col.id = c.column_id AND col.is_done = 0
 JOIN boards b ON b.id = col.board_id
@@ -73,11 +75,11 @@ JOIN project_groups g ON g.id = b.project_group_id
 JOIN users ou ON ou.id = b.owner_id
 LEFT JOIN users au ON au.id = c.assignee_id
 WHERE c.status = ?
-AND (col.title LIKE '%待办%' OR col.title LIKE '%明天%' OR col.title LIKE '%TODO%' OR col.title LIKE '%todo%' OR col.position = 0)
 ORDER BY g.name, b.title, c.position ASC`, models.CardStatusActive)
 	if err != nil {
 		return nil, err
 	}
+	tomorrow = filterAgentRowsOrFirst(tomorrow, agent.IsTodoColumn)
 
 	users := map[string]*models.AgentUserDay{}
 	ensure := func(username string) *models.AgentUserDay {
@@ -110,10 +112,21 @@ ORDER BY g.name, b.title, c.position ASC`, models.CardStatusActive)
 	}
 
 	result := &models.AgentCollaborationDay{
-		Date:    start.Format("2006-01-02"),
-		Weekday: agent.WeekdayCN(start),
-		Users:   make([]models.AgentUserDay, 0, len(users)),
+		Date:          start.Format("2006-01-02"),
+		Weekday:       locale.WeekdayCN(start),
+		WeekStart:     "monday",
+		WeekStartDate: "",
+		WeekEndDate:   "",
+		Users:         make([]models.AgentUserDay, 0, len(users)),
 	}
+	ws, we := locale.WeekBounds(start, s.weekStart)
+	if s.weekStart == time.Monday {
+		result.WeekStart = locale.WeekStartMonday
+	} else {
+		result.WeekStart = locale.WeekStartSunday
+	}
+	result.WeekStartDate = ws.Format("2006-01-02")
+	result.WeekEndDate = we.Format("2006-01-02")
 	for _, u := range users {
 		result.Users = append(result.Users, *u)
 	}
@@ -131,7 +144,7 @@ func (s *Store) queryAgentCards(ctx context.Context, query string, args ...any) 
 	for rows.Next() {
 		var r cardRow
 		if err := rows.Scan(&r.ID, &r.Title, &r.Description, &r.AssigneeID, &r.OwnerID,
-			&r.Username, &r.BoardTitle, &r.GroupName, &r.ColumnTitle, &r.UpdatedAt, &r.CompletedAt); err != nil {
+			&r.Username, &r.BoardTitle, &r.GroupName, &r.ColumnTitle, &r.ColumnPosition, &r.UpdatedAt, &r.CompletedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -152,6 +165,26 @@ func (r cardRow) toItem() models.AgentTaskItem {
 		GroupName:   r.GroupName,
 		ColumnTitle: r.ColumnTitle,
 	}
+}
+
+func filterAgentRows(rows []cardRow, match func(string) bool) []cardRow {
+	out := make([]cardRow, 0, len(rows))
+	for _, r := range rows {
+		if match(r.ColumnTitle) {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+func filterAgentRowsOrFirst(rows []cardRow, match func(string) bool) []cardRow {
+	out := make([]cardRow, 0, len(rows))
+	for _, r := range rows {
+		if match(r.ColumnTitle) || r.ColumnPosition == 0 {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 func (s *Store) RenderAgentDailyMarkdown(ctx context.Context, day time.Time, filterUser string) (string, error) {

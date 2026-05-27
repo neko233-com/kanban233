@@ -22,7 +22,7 @@ type Server struct {
 }
 
 func New(cfg *config.Config) (*Server, error) {
-	store, err := db.Open(cfg.Database, cfg.Auth)
+	store, err := db.Open(cfg.Database, cfg.Auth, cfg.Locale)
 	if err != nil {
 		return nil, err
 	}

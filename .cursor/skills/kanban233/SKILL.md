@@ -25,7 +25,8 @@ internal/config/ db/ auth/ api/ server/
 web/login.html  web/board.html  web/common.js  web/auth.js  web/board.js
 server.yaml
 build.cmd  run-dev.cmd  test.cmd
-Dockerfile  docker-compose.yml  Jenkinsfile  .github/workflows/ci.yml
+Dockerfile  docker-compose.yml  docker-deploy-image.ps1  Jenkinsfile  .github/workflows/ci.yml
+README.md  README-CN.md
 ```
 
 ## Domain Model
@@ -42,6 +43,8 @@ server:
   addr: ":61333"
 project:
   default_join_mode: free
+locale:
+  week_start: monday      # monday | sunday
 ```
 
 ## Pages
@@ -80,13 +83,17 @@ Export JSON fields: `export_version`, `export_type`, `exported_at`, `exported_by
 
 **Audit:** `GET /api/audit-logs?limit=100&offset=0` — 内网全员可查
 
-**Agent（外部 Agent / 日报）** — `agent.enabled: true`
+**Agent（外部 Agent / 日报 / AI 协作）** — `agent.enabled: true`
 - 认证：`X-Agent-Token` / JWT / Basic `root:root`
+- `GET /api/agent/capabilities` — 能力发现（含 task_categories）
 - `GET /api/agent/collaboration?date=YYYY-MM-DD&user=`
 - `GET /api/agent/daily-report.md?date=&user=` — Markdown 日报
-- `GET /api/agent/daily-report?format=markdown` — JSON 含 markdown 字段
+- `GET /api/agent/research/overview?as=root` — 研发全视图
+- `GET /api/agent/tasks?category=AI&status=active&q=` — 按分类/关键词搜任务
+- `POST /api/agent/cards?as=root` — 创建任务（支持 category 自动 `【AI】` 标题）
+- `PUT /api/agent/cards/{id}` / `POST .../move` / `POST .../complete`
 - 卡片标题推荐：`【后端】100% 任务摘要`（description 作 `- 细节`）
-- 今日完结 → 正文列表；待办列 → `明天：` 段
+- 列名识别含 AI/智能/研发 等；`locale.week_start` 默认 `monday`
 
 ## Default Account
 
@@ -105,6 +112,7 @@ build.cmd
 - GitHub Actions: test + build; Docker on push
 - Jenkins: test → build → docker push (main/master)
 - `docker compose up --build`
+- `docker-deploy-image.ps1 -Registry <host> -Tag <ver> -Push [-PushLatest]`
 
 ## Dev Notes
 

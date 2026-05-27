@@ -20,3 +20,19 @@ project:
 agent:
   enabled: true
   api_token: kanban-agent-intranet
+  default_act_as: root
+  task_categories:
+    - AI
+    - 算法
+    - 后端
+    - 前端
+    - 测试
+    - 运维
+    - 产品
+    - 设计
+    - 数据
+    - 安全
+    - 文档
+
+locale:
+  week_start: monday

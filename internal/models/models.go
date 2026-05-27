@@ -233,9 +233,12 @@ type CardHistoryItem struct {
 }
 
 type AgentCollaborationDay struct {
-	Date    string         `json:"date"`
-	Weekday string         `json:"weekday"`
-	Users   []AgentUserDay `json:"users"`
+	Date          string         `json:"date"`
+	Weekday       string         `json:"weekday"`
+	WeekStart     string         `json:"week_start"`
+	WeekStartDate string         `json:"week_start_date"`
+	WeekEndDate   string         `json:"week_end_date"`
+	Users         []AgentUserDay `json:"users"`
 }
 
 type AgentUserDay struct {
@@ -255,4 +258,33 @@ type AgentTaskItem struct {
 	BoardTitle  string `json:"board_title"`
 	GroupName   string `json:"group_name"`
 	ColumnTitle string `json:"column_title"`
+}
+
+type AgentCreateCardRequest struct {
+	ColumnID    int64  `json:"column_id"`
+	BoardID     int64  `json:"board_id"`
+	ColumnTitle string `json:"column_title"`
+	Category    string `json:"category"`
+	Progress    int    `json:"progress"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
+type AgentUpdateCardRequest struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Category    string `json:"category"`
+	Progress    int    `json:"progress"`
+}
+
+type AgentMoveCardRequest struct {
+	ColumnID int64 `json:"column_id"`
+	Position int   `json:"position"`
+}
+
+type AgentCapabilities struct {
+	Enabled        bool     `json:"enabled"`
+	DefaultActAs   string   `json:"default_act_as"`
+	TaskCategories []string `json:"task_categories"`
+	Endpoints      []string `json:"endpoints"`
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/neko233/kanban233/internal/locale"
 	"github.com/neko233/kanban233/internal/models"
 )
 
@@ -52,6 +53,14 @@ func FormatTaskLine(index int, item models.AgentTaskItem) string {
 func RenderDailyMarkdown(day models.AgentCollaborationDay) string {
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("# %s %s\n", day.Date, day.Weekday))
+	if day.WeekStartDate != "" && day.WeekEndDate != "" {
+		ws, _ := time.Parse("2006-01-02", day.WeekStartDate)
+		we, _ := time.Parse("2006-01-02", day.WeekEndDate)
+		b.WriteString(fmt.Sprintf("> 本周（%s起）：%s（%s）~ %s（%s）\n",
+			weekStartLabel(day.WeekStart),
+			day.WeekStartDate, locale.WeekdayCN(ws),
+			day.WeekEndDate, locale.WeekdayCN(we)))
+	}
 	if len(day.Users) == 0 {
 		b.WriteString("\n（暂无协作数据）\n")
 		return b.String()
@@ -93,7 +102,9 @@ func RenderDailyMarkdown(day models.AgentCollaborationDay) string {
 	return strings.TrimRight(b.String(), "\n") + "\n"
 }
 
-func WeekdayCN(t time.Time) string {
-	names := []string{"周日", "周一", "周二", "周三", "周四", "周五", "周六"}
-	return names[t.Weekday()]
+func weekStartLabel(start string) string {
+	if start == locale.WeekStartSunday {
+		return "周日"
+	}
+	return "周一"
 }

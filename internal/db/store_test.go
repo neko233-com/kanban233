@@ -18,7 +18,7 @@ func openTestStore(t *testing.T) *Store {
 		DSN:    filepath.Join(dir, "test.db"),
 	}, config.AuthConfig{
 		DefaultUser: config.DefaultUserConfig{Username: "root", Password: "root"},
-	})
+	}, config.LocaleConfig{WeekStart: "monday"})
 	if err != nil {
 		t.Fatal(err)
 	}

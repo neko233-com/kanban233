@@ -8,18 +8,22 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/neko233/kanban233/internal/config"
+	"github.com/neko233/kanban233/internal/locale"
+	"github.com/neko233/kanban233/internal/models"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "modernc.org/sqlite"
 )
 
 type Store struct {
-	db     *sql.DB
-	driver string
+	db        *sql.DB
+	driver    string
+	weekStart time.Weekday
 }
 
-func Open(cfg config.DatabaseConfig, authCfg config.AuthConfig) (*Store, error) {
+func Open(cfg config.DatabaseConfig, authCfg config.AuthConfig, localeCfg config.LocaleConfig) (*Store, error) {
 	driverName := cfg.Driver
 	if cfg.Driver == "postgres" {
 		driverName = "pgx"
@@ -40,7 +44,11 @@ func Open(cfg config.DatabaseConfig, authCfg config.AuthConfig) (*Store, error) 
 		return nil, fmt.Errorf("ping database: %w", err)
 	}
 
-	store := &Store{db: db, driver: cfg.Driver}
+	store := &Store{
+		db:        db,
+		driver:    cfg.Driver,
+		weekStart: locale.ParseWeekStart(localeCfg.WeekStart),
+	}
 	if err := store.migrate(); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -62,19 +70,29 @@ func (s *Store) DB() *sql.DB {
 }
 
 func (s *Store) migrate() error {
-	schema := sqliteSchema()
+	tables := sqliteSchemaTables()
 	if s.driver == "postgres" {
-		schema = postgresSchema()
+		tables = postgresSchemaTables()
 	}
-	if _, err := s.db.Exec(schema); err != nil {
-		return fmt.Errorf("migrate: %w", err)
+	if _, err := s.db.Exec(tables); err != nil {
+		return fmt.Errorf("migrate tables: %w", err)
 	}
-	return s.migrateLegacy(ctxBackground(), s.db)
+	if err := s.migrateLegacy(ctxBackground()); err != nil {
+		return fmt.Errorf("migrate legacy: %w", err)
+	}
+	indexes := sqliteSchemaIndexes()
+	if s.driver == "postgres" {
+		indexes = postgresSchemaIndexes()
+	}
+	if _, err := s.db.Exec(indexes); err != nil {
+		return fmt.Errorf("migrate indexes: %w", err)
+	}
+	return nil
 }
 
 var ctxBackground = func() context.Context { return context.Background() }
 
-func sqliteSchema() string {
+func sqliteSchemaTables() string {
 	return `
 CREATE TABLE IF NOT EXISTS users (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -146,7 +164,11 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 	ip TEXT NOT NULL DEFAULT '',
 	created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+`
+}
 
+func sqliteSchemaIndexes() string {
+	return `
 CREATE INDEX IF NOT EXISTS idx_groups_owner ON project_groups(owner_id);
 CREATE INDEX IF NOT EXISTS idx_groups_public ON project_groups(is_public);
 CREATE INDEX IF NOT EXISTS idx_boards_group ON boards(project_group_id);
@@ -161,7 +183,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_logs(user_id);
 `
 }
 
-func postgresSchema() string {
+func postgresSchemaTables() string {
 	return `
 CREATE TABLE IF NOT EXISTS users (
 	id SERIAL PRIMARY KEY,
@@ -233,7 +255,11 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 	ip TEXT NOT NULL DEFAULT '',
 	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+`
+}
 
+func postgresSchemaIndexes() string {
+	return `
 CREATE INDEX IF NOT EXISTS idx_groups_owner ON project_groups(owner_id);
 CREATE INDEX IF NOT EXISTS idx_groups_public ON project_groups(is_public);
 CREATE INDEX IF NOT EXISTS idx_boards_group ON boards(project_group_id);
@@ -248,7 +274,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_logs(user_id);
 `
 }
 
-func (s *Store) migrateLegacy(ctx context.Context, db *sql.DB) error {
+func (s *Store) migrateLegacy(ctx context.Context) error {
 	if !s.columnExists("boards", "project_group_id") {
 		_ = s.execIgnore(`ALTER TABLE boards ADD COLUMN project_group_id INTEGER`)
 		_ = s.execIgnore(`ALTER TABLE boards ADD COLUMN export_key TEXT`)
@@ -266,7 +292,15 @@ func (s *Store) migrateLegacy(ctx context.Context, db *sql.DB) error {
 	}
 	if !s.columnExists("cards", "status") {
 		_ = s.execIgnore(`ALTER TABLE cards ADD COLUMN status TEXT NOT NULL DEFAULT 'active'`)
+	}
+	if !s.columnExists("cards", "completed_at") {
 		_ = s.execIgnore(`ALTER TABLE cards ADD COLUMN completed_at DATETIME`)
+	}
+	if s.columnExists("cards", "status") && s.columnExists("columns", "is_done") {
+		_, _ = s.db.ExecContext(ctx, s.q(`
+UPDATE cards SET status = ?, completed_at = COALESCE(completed_at, updated_at)
+WHERE status = ? AND column_id IN (SELECT id FROM columns WHERE is_done = 1)`),
+			models.CardStatusCompleted, models.CardStatusActive)
 	}
 	if !s.tableExists("project_group_members") {
 		_, err := s.db.Exec(`

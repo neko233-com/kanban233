@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -13,11 +14,18 @@ type Config struct {
 	Database DatabaseConfig `yaml:"database"`
 	Project  ProjectConfig  `yaml:"project"`
 	Agent    AgentConfig    `yaml:"agent"`
+	Locale   LocaleConfig   `yaml:"locale"`
+}
+
+type LocaleConfig struct {
+	WeekStart string `yaml:"week_start"`
 }
 
 type AgentConfig struct {
-	Enabled  bool   `yaml:"enabled"`
-	APIToken string `yaml:"api_token"`
+	Enabled        bool     `yaml:"enabled"`
+	APIToken       string   `yaml:"api_token"`
+	DefaultActAs   string   `yaml:"default_act_as"`
+	TaskCategories []string `yaml:"task_categories"`
 }
 
 type DefaultUserConfig struct {
@@ -87,8 +95,15 @@ func defaultConfig() *Config {
 			DefaultJoinMode: "free",
 		},
 		Agent: AgentConfig{
-			Enabled:  true,
-			APIToken: "kanban-agent-intranet",
+			Enabled:      true,
+			APIToken:     "kanban-agent-intranet",
+			DefaultActAs: "root",
+			TaskCategories: []string{
+				"AI", "算法", "后端", "前端", "测试", "运维", "产品", "设计", "数据", "安全", "文档",
+			},
+		},
+		Locale: LocaleConfig{
+			WeekStart: "monday",
 		},
 	}
 }
@@ -118,6 +133,23 @@ func (c *Config) validate() error {
 	case "free", "apply":
 	default:
 		return fmt.Errorf("project.default_join_mode must be free or apply")
+	}
+	if c.Locale.WeekStart == "" {
+		c.Locale.WeekStart = "monday"
+	}
+	switch strings.ToLower(c.Locale.WeekStart) {
+	case "monday", "sunday":
+	default:
+		return fmt.Errorf("locale.week_start must be monday or sunday")
+	}
+	if c.Agent.DefaultActAs == "" {
+		c.Agent.DefaultActAs = c.Auth.DefaultUser.Username
+	}
+	if c.Agent.DefaultActAs == "" {
+		c.Agent.DefaultActAs = "root"
+	}
+	if len(c.Agent.TaskCategories) == 0 {
+		c.Agent.TaskCategories = defaultConfig().Agent.TaskCategories
 	}
 	return nil
 }

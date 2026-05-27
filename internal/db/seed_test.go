@@ -15,7 +15,7 @@ func TestSeedDefaultRootUser(t *testing.T) {
 		DSN:    filepath.Join(dir, "seed.db"),
 	}, config.AuthConfig{
 		DefaultUser: config.DefaultUserConfig{Username: "root", Password: "root"},
-	})
+	}, config.LocaleConfig{WeekStart: "monday"})
 	if err != nil {
 		t.Fatal(err)
 	}
