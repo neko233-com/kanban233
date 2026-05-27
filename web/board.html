@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>看板 - Kanban233</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">Kanban233</div>
+      <nav class="main-nav">
+        <button class="nav-btn active" data-view="research">研发全视图</button>
+        <button class="nav-btn" data-view="projects">项目组看板</button>
+      </nav>
+      <div class="topbar-actions">
+        <button id="export-all-btn" class="btn">导出全部项目</button>
+        <button id="audit-btn" class="btn ghost">操作日志</button>
+        <span id="username"></span>
+        <button id="logout-btn" class="btn ghost">退出</button>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <aside class="sidebar" id="projects-sidebar">
+        <div class="sidebar-header">
+          <h3>我的项目组</h3>
+          <button id="new-group-btn" class="btn small">+</button>
+        </div>
+        <ul id="group-list" class="group-list"></ul>
+        <div class="sidebar-header explore-header">
+          <h3>加入项目</h3>
+        </div>
+        <ul id="explore-list" class="group-list"></ul>
+      </aside>
+
+      <section class="main-pane">
+        <div id="research-view">
+          <div class="pane-header">
+            <div>
+              <h2>研发全视图</h2>
+              <p id="research-summary" class="muted"></p>
+            </div>
+          </div>
+          <div id="research-content" class="research-content"></div>
+        </div>
+
+        <div id="projects-pane" class="hidden">
+          <div id="group-view">
+            <div class="pane-header">
+              <div>
+                <h2 id="group-title">选择项目组</h2>
+                <p id="group-meta" class="muted"></p>
+              </div>
+              <div class="pane-actions">
+                <button id="group-history-btn" class="btn hidden">完结历史</button>
+                <button id="applications-btn" class="btn hidden">加入申请</button>
+                <button id="edit-group-btn" class="btn hidden">编辑项目组</button>
+                <button id="new-board-btn" class="btn primary hidden">新建看板</button>
+              </div>
+            </div>
+            <ul id="board-list" class="board-list"></ul>
+          </div>
+
+          <div id="board-view" class="hidden">
+            <div class="board-toolbar">
+              <button id="back-btn" class="btn ghost">← 返回</button>
+              <h2 id="board-title"></h2>
+              <div class="board-actions">
+                <button id="board-history-btn" class="btn">完结历史</button>
+                <button id="export-board-btn" class="btn">导出看板</button>
+                <label class="btn import-label">
+                  导入看板
+                  <input type="file" id="import-board-input" accept="application/json" hidden>
+                </label>
+                <button id="add-column-btn" class="btn">添加列</button>
+              </div>
+            </div>
+            <div id="kanban" class="kanban"></div>
+            <div id="complete-drop" class="complete-drop">拖入此处或点击卡片「完结」归档任务</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <dialog id="group-dialog">
+    <form method="dialog" id="group-form">
+      <h3 id="group-dialog-title">项目组</h3>
+      <label>名称<input name="name" required></label>
+      <label>描述<textarea name="description" rows="3"></textarea></label>
+      <label class="checkbox-label">
+        <input type="checkbox" name="is_public"> 公开项目组（内网可见）
+      </label>
+      <label>加入方式
+        <select name="join_mode">
+          <option value="free">自由加入（默认）</option>
+          <option value="apply">申请加入（需 owner 审批）</option>
+        </select>
+      </label>
+      <div class="dialog-actions">
+        <button type="button" id="delete-group-btn" class="btn danger hidden">删除</button>
+        <button type="submit" class="btn primary">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="card-dialog">
+    <form method="dialog" id="card-form">
+      <h3 id="card-dialog-title">编辑卡片</h3>
+      <label>标题<input name="title" required></label>
+      <label>描述<textarea name="description" rows="4"></textarea></label>
+      <div class="dialog-actions">
+        <button type="button" id="complete-card-btn" class="btn hidden">完结</button>
+        <button type="button" id="delete-card-btn" class="btn danger hidden">删除</button>
+        <button type="submit" class="btn primary">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="history-dialog" class="wide-dialog">
+    <h3 id="history-title">完结历史</h3>
+    <div id="history-list" class="history-list"></div>
+    <div class="dialog-actions">
+      <button type="button" class="btn" onclick="document.getElementById('history-dialog').close()">关闭</button>
+    </div>
+  </dialog>
+
+  <dialog id="applications-dialog" class="wide-dialog">
+    <h3>待审批加入申请</h3>
+    <div id="applications-list"></div>
+    <div class="dialog-actions">
+      <button type="button" class="btn" onclick="document.getElementById('applications-dialog').close()">关闭</button>
+    </div>
+  </dialog>
+
+  <dialog id="audit-dialog" class="wide-dialog">
+    <h3>操作审计日志</h3>
+    <div id="audit-list" class="audit-list"></div>
+    <div class="dialog-actions">
+      <button type="button" class="btn" onclick="document.getElementById('audit-dialog').close()">关闭</button>
+    </div>
+  </dialog>
+
+  <script src="/common.js"></script>
+  <script src="/board.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+services:
+  kanban:
+    build: .
+    ports:
+      - "61333:61333"
+    volumes:
+      - kanban-data:/app/data
+      - ./server.yaml:/app/server.yaml:ro
+    environment:
+      KANBAN_CONFIG: /app/server.yaml
+    restart: unless-stopped
+
+volumes:
+  kanban-data:

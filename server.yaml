@@ -1,0 +1,22 @@
+server:
+  addr: ":61333"
+  static_dir: "./web"
+
+auth:
+  registration_open: true
+  jwt_secret: "change-me-in-production"
+  token_ttl_hours: 168
+  default_user:
+    username: root
+    password: root
+
+database:
+  driver: sqlite
+  dsn: "./data/kanban.db"
+
+project:
+  default_join_mode: free
+
+agent:
+  enabled: true
+  api_token: kanban-agent-intranet

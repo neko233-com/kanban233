@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 - Kanban233</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="auth-page">
+  <main class="panel auth-panel">
+    <h1>Kanban233</h1>
+    <p class="muted">login.html 默认账号 root / root（首次启动自动创建）</p>
+    <div class="tabs">
+      <button class="tab active" data-tab="login">登录</button>
+      <button class="tab" data-tab="register" id="register-tab">注册</button>
+    </div>
+    <form id="login-form" class="auth-form">
+      <label>用户名<input name="username" required minlength="3" autocomplete="username"></label>
+      <label>密码<input name="password" type="password" required minlength="6" autocomplete="current-password"></label>
+      <button type="submit" class="btn primary">登录</button>
+    </form>
+    <form id="register-form" class="auth-form hidden">
+      <label>用户名<input name="username" required minlength="3" autocomplete="username"></label>
+      <label>密码<input name="password" type="password" required minlength="6" autocomplete="new-password"></label>
+      <button type="submit" class="btn primary">注册</button>
+    </form>
+    <p id="auth-error" class="error hidden"></p>
+  </main>
+  <script src="/common.js"></script>
+  <script src="/auth.js"></script>
+</body>
+</html>
