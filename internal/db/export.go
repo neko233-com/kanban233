@@ -135,7 +135,8 @@ func buildExportBoard(detail *models.BoardDetail, groupName string, isPublic boo
 		ec := models.ExportColumn{Title: col.Title, Position: col.Position}
 		for _, card := range cardsByCol[col.ID] {
 			ec.Cards = append(ec.Cards, models.ExportCard{
-				Title: card.Title, Description: card.Description, Position: card.Position,
+				Title: card.Title, Description: card.Description, Workers: card.Workers,
+				StartDate: card.StartDate, EndDate: card.EndDate, Position: card.Position,
 			})
 		}
 		if ec.Cards == nil {
@@ -277,8 +278,9 @@ INSERT INTO columns (board_id, title, position) VALUES (?, ?, ?)`),
 		}
 		for _, card := range col.Cards {
 			if _, err := tx.ExecContext(ctx, s.q(`
-INSERT INTO cards (column_id, title, description, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`),
-				colID, card.Title, card.Description, card.Position, now, now); err != nil {
+INSERT INTO cards (column_id, title, description, workers, start_date, end_date, position, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+				colID, card.Title, card.Description, card.Workers, card.StartDate, card.EndDate, card.Position, now, now); err != nil {
 				return err
 			}
 		}

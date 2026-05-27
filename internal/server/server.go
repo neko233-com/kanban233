@@ -5,8 +5,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/neko233/kanban233/internal/api"
 	"github.com/neko233/kanban233/internal/auth"
@@ -32,7 +30,10 @@ func New(cfg *config.Config) (*Server, error) {
 
 	mux := http.NewServeMux()
 	handler.Register(mux)
-	mux.Handle("/", staticHandler(cfg.Server.StaticDir))
+	if cfg.Server.Dev {
+		registerDevRoutes(mux, cfg.Server.StaticDir)
+	}
+	mux.Handle("/", staticHandlerWithDev(cfg.Server.StaticDir, cfg.Server.Dev))
 
 	return &Server{
 		cfg:   cfg,
@@ -55,24 +56,7 @@ func (s *Server) Close() error {
 }
 
 func staticHandler(dir string) http.Handler {
-	fs := http.FileServer(http.Dir(dir))
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api/") {
-			http.NotFound(w, r)
-			return
-		}
-		path := r.URL.Path
-		if path == "/" || path == "" {
-			http.Redirect(w, r, "/login.html", http.StatusFound)
-			return
-		}
-		filePath := filepath.Join(dir, filepath.Clean("/"+path))
-		if info, err := os.Stat(filePath); err == nil && !info.IsDir() {
-			fs.ServeHTTP(w, r)
-			return
-		}
-		http.NotFound(w, r)
-	})
+	return staticHandlerWithDev(dir, false)
 }
 
 func corsMiddleware(next http.Handler) http.Handler {

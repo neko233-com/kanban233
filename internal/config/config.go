@@ -40,6 +40,7 @@ type ProjectConfig struct {
 type ServerConfig struct {
 	Addr      string `yaml:"addr"`
 	StaticDir string `yaml:"static_dir"`
+	Dev       bool   `yaml:"dev"`
 }
 
 type AuthConfig struct {
@@ -69,7 +70,16 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 
+	cfg.applyEnv()
+
 	return cfg, nil
+}
+
+func (c *Config) applyEnv() {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("KANBAN_DEV"))) {
+	case "1", "true", "yes", "on":
+		c.Server.Dev = true
+	}
 }
 
 func defaultConfig() *Config {

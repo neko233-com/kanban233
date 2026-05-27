@@ -319,6 +319,15 @@ CREATE TABLE IF NOT EXISTS project_group_members (
 	if !s.columnExists("cards", "assignee_id") {
 		_ = s.execIgnore(`ALTER TABLE cards ADD COLUMN assignee_id INTEGER REFERENCES users(id)`)
 	}
+	if !s.columnExists("cards", "workers") {
+		_ = s.execIgnore(`ALTER TABLE cards ADD COLUMN workers TEXT NOT NULL DEFAULT ''`)
+	}
+	if !s.columnExists("cards", "start_date") {
+		_ = s.execIgnore(`ALTER TABLE cards ADD COLUMN start_date TEXT`)
+	}
+	if !s.columnExists("cards", "end_date") {
+		_ = s.execIgnore(`ALTER TABLE cards ADD COLUMN end_date TEXT`)
+	}
 	return nil
 }
 

@@ -33,6 +33,26 @@ database:
 	}
 }
 
+func TestLoadKANBANDevEnv(t *testing.T) {
+	t.Setenv("KANBAN_DEV", "1")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "server.yaml")
+	if err := os.WriteFile(path, []byte(`
+database:
+  driver: sqlite
+  dsn: "./test.db"
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Server.Dev {
+		t.Fatal("expected dev mode from KANBAN_DEV")
+	}
+}
+
 func TestLoadInvalidDriver(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "server.yaml")

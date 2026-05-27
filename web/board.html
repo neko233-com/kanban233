@@ -10,14 +10,14 @@
   <div id="app">
     <header class="topbar">
       <div class="brand">Kanban233</div>
-      <nav class="main-nav">
+      <nav class="main-nav segmented-control">
         <button class="nav-btn active" data-view="research">研发全视图</button>
         <button class="nav-btn" data-view="projects">项目组看板</button>
       </nav>
       <div class="topbar-actions">
-        <button id="export-all-btn" class="btn">导出全部项目</button>
+        <button id="export-all-btn" class="btn ghost">导出全部</button>
         <button id="audit-btn" class="btn ghost">操作日志</button>
-        <span id="username"></span>
+        <span id="username" class="user-pill"></span>
         <button id="logout-btn" class="btn ghost">退出</button>
       </div>
     </header>
@@ -28,6 +28,9 @@
           <h3>我的项目组</h3>
           <button id="new-group-btn" class="btn small">+</button>
         </div>
+        <div class="sidebar-search">
+          <input id="group-search" type="search" placeholder="搜索项目组…" autocomplete="off" spellcheck="false">
+        </div>
         <ul id="group-list" class="group-list"></ul>
         <div class="sidebar-header explore-header">
           <h3>加入项目</h3>
@@ -37,48 +40,55 @@
 
       <section class="main-pane">
         <div id="research-view">
-          <div class="pane-header">
+          <div class="pane-header page-hero">
             <div>
               <h2>研发全视图</h2>
-              <p id="research-summary" class="muted"></p>
+              <div id="research-summary" class="stat-row"></div>
+            </div>
+          </div>
+          <div id="research-stats" class="stats-panel">
+            <div class="stats-charts">
+              <div id="research-chart-workers" class="chart-box"></div>
+              <div id="research-chart-status" class="chart-box"></div>
             </div>
           </div>
           <div id="research-content" class="research-content"></div>
         </div>
 
         <div id="projects-pane" class="hidden">
-          <div id="group-view">
-            <div class="pane-header">
-              <div>
-                <h2 id="group-title">选择项目组</h2>
-                <p id="group-meta" class="muted"></p>
-              </div>
-              <div class="pane-actions">
-                <button id="group-history-btn" class="btn hidden">完结历史</button>
-                <button id="applications-btn" class="btn hidden">加入申请</button>
-                <button id="edit-group-btn" class="btn hidden">编辑项目组</button>
-                <button id="new-board-btn" class="btn primary hidden">新建看板</button>
-              </div>
-            </div>
-            <ul id="board-list" class="board-list"></ul>
+          <div id="project-empty" class="project-empty">
+            <h2>选择项目组</h2>
+            <p class="muted">从左侧选择或搜索项目组，一个项目对应一个看板</p>
           </div>
 
           <div id="board-view" class="hidden">
             <div class="board-toolbar">
-              <button id="back-btn" class="btn ghost">← 返回</button>
-              <h2 id="board-title"></h2>
+              <div class="board-heading">
+                <h2 id="board-title"></h2>
+                <p id="group-meta" class="muted"></p>
+              </div>
               <div class="board-actions">
-                <button id="board-history-btn" class="btn">完结历史</button>
-                <button id="export-board-btn" class="btn">导出看板</button>
-                <label class="btn import-label">
-                  导入看板
+                <button id="group-history-btn" class="btn ghost">归档历史</button>
+                <button id="applications-btn" class="btn ghost hidden">加入申请</button>
+                <button id="edit-group-btn" class="btn ghost">编辑项目</button>
+                <button id="board-history-btn" class="btn ghost">看板历史</button>
+                <button id="export-board-btn" class="btn ghost">导出</button>
+                <label class="btn ghost import-label">
+                  导入
                   <input type="file" id="import-board-input" accept="application/json" hidden>
                 </label>
                 <button id="add-column-btn" class="btn">添加列</button>
               </div>
             </div>
+            <div id="group-stats" class="stats-panel">
+              <div class="stats-charts">
+                <div id="group-chart-workers" class="chart-box"></div>
+                <div id="group-chart-column" class="chart-box"></div>
+                <div id="group-chart-status" class="chart-box"></div>
+              </div>
+            </div>
             <div id="kanban" class="kanban"></div>
-            <div id="complete-drop" class="complete-drop">拖入此处或点击卡片「完结」归档任务</div>
+            <div id="complete-drop" class="complete-drop">拖入此处归档（移入历史，不占看板列，仍计入统计）</div>
           </div>
         </div>
       </section>
@@ -110,9 +120,14 @@
     <form method="dialog" id="card-form">
       <h3 id="card-dialog-title">编辑卡片</h3>
       <label>标题<input name="title" required></label>
-      <label>描述<textarea name="description" rows="4"></textarea></label>
+      <label>描述<textarea name="description" rows="3"></textarea></label>
+      <label>工作人员<input name="workers" placeholder="张三, 李四（与登录账号无关，可填多人）"></label>
+      <div class="form-row">
+        <label>起始日期<input name="start_date" type="date"></label>
+        <label>结束日期<input name="end_date" type="date"></label>
+      </div>
       <div class="dialog-actions">
-        <button type="button" id="complete-card-btn" class="btn hidden">完结</button>
+        <button type="button" id="archive-card-btn" class="btn hidden">归档</button>
         <button type="button" id="delete-card-btn" class="btn danger hidden">删除</button>
         <button type="submit" class="btn primary">保存</button>
       </div>
@@ -120,7 +135,7 @@
   </dialog>
 
   <dialog id="history-dialog" class="wide-dialog">
-    <h3 id="history-title">完结历史</h3>
+    <h3 id="history-title">归档历史</h3>
     <div id="history-list" class="history-list"></div>
     <div class="dialog-actions">
       <button type="button" class="btn" onclick="document.getElementById('history-dialog').close()">关闭</button>
@@ -139,11 +154,15 @@
     <h3>操作审计日志</h3>
     <div id="audit-list" class="audit-list"></div>
     <div class="dialog-actions">
+      <button type="button" id="export-audit-json-btn" class="btn">导出 JSON</button>
+      <button type="button" id="export-audit-csv-btn" class="btn">导出 CSV</button>
       <button type="button" class="btn" onclick="document.getElementById('audit-dialog').close()">关闭</button>
     </div>
   </dialog>
 
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
   <script src="/common.js"></script>
+  <script src="/dev-reload.js"></script>
   <script src="/board.js"></script>
 </body>
 </html>

@@ -9,6 +9,7 @@ const (
 	JoinModeApply = "apply"
 	CardStatusActive = "active"
 	CardStatusCompleted = "completed"
+	CardStatusArchived = "archived"
 	MemberStatusActive = "active"
 	MemberStatusPending = "pending"
 )
@@ -65,6 +66,9 @@ type Card struct {
 	ColumnID    int64      `json:"column_id"`
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
+	Workers     string     `json:"workers,omitempty"`
+	StartDate   *string    `json:"start_date,omitempty"`
+	EndDate     *string    `json:"end_date,omitempty"`
 	Position    int       `json:"position"`
 	Status      string     `json:"status"`
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
@@ -136,13 +140,19 @@ type UpdateColumnRequest struct {
 }
 
 type CreateCardRequest struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
+	Title       string  `json:"title"`
+	Description string  `json:"description"`
+	Workers     string  `json:"workers"`
+	StartDate   *string `json:"start_date,omitempty"`
+	EndDate     *string `json:"end_date,omitempty"`
 }
 
 type UpdateCardRequest struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
+	Title       string  `json:"title"`
+	Description string  `json:"description"`
+	Workers     string  `json:"workers"`
+	StartDate   *string `json:"start_date,omitempty"`
+	EndDate     *string `json:"end_date,omitempty"`
 }
 
 type MoveCardRequest struct {
@@ -157,9 +167,12 @@ type ExportColumn struct {
 }
 
 type ExportCard struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Position    int    `json:"position"`
+	Title       string  `json:"title"`
+	Description string  `json:"description"`
+	Workers     string  `json:"workers,omitempty"`
+	StartDate   *string `json:"start_date,omitempty"`
+	EndDate     *string `json:"end_date,omitempty"`
+	Position    int     `json:"position"`
 }
 
 type ExportBoard struct {
@@ -230,6 +243,44 @@ type CardHistoryItem struct {
 	BoardID    int64  `json:"board_id"`
 	BoardTitle string `json:"board_title"`
 	GroupName  string `json:"group_name"`
+}
+
+type GroupStats struct {
+	Summary  GroupStatsSummary  `json:"summary"`
+	ByWorker []GroupWorkerStat  `json:"by_worker"`
+	ByColumn []GroupColumnStat  `json:"by_column"`
+	ByStatus []GroupStatusStat  `json:"by_status"`
+}
+
+type GroupStatsSummary struct {
+	Active    int `json:"active"`
+	Archived  int `json:"archived"`
+	Completed int `json:"completed"`
+	Total     int `json:"total"`
+	Workers   int `json:"worker_count"`
+}
+
+type GroupWorkerStat struct {
+	Name     string `json:"name"`
+	Active   int    `json:"active"`
+	Finished int    `json:"finished"`
+	Total    int    `json:"total"`
+}
+
+type GroupColumnStat struct {
+	Column string `json:"column"`
+	Count  int    `json:"count"`
+}
+
+type GroupStatusStat struct {
+	Status string `json:"status"`
+	Count  int    `json:"count"`
+}
+
+type ResearchStats struct {
+	Summary  GroupStatsSummary `json:"summary"`
+	ByWorker []GroupWorkerStat `json:"by_worker"`
+	ByStatus []GroupStatusStat `json:"by_status"`
 }
 
 type AgentCollaborationDay struct {

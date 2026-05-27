@@ -33,7 +33,8 @@ README.md  README-CN.md
 
 - **ProjectGroup**: `is_public`, `join_mode` (`free` 默认 | `apply`)
 - **Members**: `project_group_members` — 自由加入或申请审批
-- **Card**: `status` active/completed; 完结后不在看板显示，可查历史
+- **Card**: `status` active / archived / completed；归档后不在看板列显示，计入统计与历史
+- **Card 字段**: `workers`（工作人员，与账号无关）、`start_date`、`end_date`
 - **Column**: `is_done` — 「完成」列触发归档
 
 ## Config (`server.yaml`)
@@ -56,6 +57,7 @@ locale:
 ## API Highlights
 
 **Research:** `GET /api/research/overview` — 研发全视图（跨项目进行中任务）
+**Stats:** `GET /api/research/stats`、`GET /api/groups/{id}/stats` — ECharts 宏观数据（按工作人员/列/状态）
 
 **Join:** `GET /api/groups/explore`, `POST /api/groups/{id}/join`
 - `join_mode=free`: 立即成为成员
@@ -63,7 +65,8 @@ locale:
 
 **History:** `GET /api/boards/{id}/history`, `GET /api/groups/{id}/history`
 
-**Complete:** `POST /api/cards/{id}/complete` — 归档任务（移入 is_done 列）
+**Complete:** `POST /api/cards/{id}/complete` — 拖入完成列（status=completed）
+**Archive:** `POST /api/cards/{id}/archive` — 归档（status=archived，不占看板列，计入统计）
 
 **Groups:** `GET/POST /api/groups`, ...
 
@@ -81,7 +84,7 @@ locale:
 
 Export JSON fields: `export_version`, `export_type`, `exported_at`, `exported_by`
 
-**Audit:** `GET /api/audit-logs?limit=100&offset=0` — 内网全员可查
+**Audit:** `GET /api/audit-logs?limit=100&offset=0` — 内网全员可查；`GET /api/audit-logs/export?format=json|csv` — 导出
 
 **Agent（外部 Agent / 日报 / AI 协作）** — `agent.enabled: true`
 - 认证：`X-Agent-Token` / JWT / Basic `root:root`
@@ -98,11 +101,12 @@ Export JSON fields: `export_version`, `export_type`, `exported_at`, `exported_by
 ## Default Account
 
 - 用户名/密码：`root` / `root`（`auth.default_user`，首次启动 seed）
+- 内置 demo：`入门教学` + `AI 协作示例` 公开项目组（首次启动自动创建，可教学）
 
 ## Local Commands
 
 ```cmd
-run-dev.cmd    # http://localhost:61333
+run-dev.cmd    # http://localhost:61333，web 热重载（KANBAN_DEV=1）
 test.cmd
 build.cmd
 ```
@@ -110,13 +114,15 @@ build.cmd
 ## CI/CD
 
 - GitHub Actions: test + build; Docker on push
-- Jenkins: test → build → docker push (main/master)
+- Jenkins: test → build binary（无 Docker）；产物 `kanban`
 - `docker compose up --build`
 - `docker-deploy-image.ps1 -Registry <host> -Tag <ver> -Push [-PushLatest]`
 
 ## Dev Notes
 
+- UI 审美见 `.cursor/skills/kanban233-ui/SKILL.md`（Apple HIG 深色风格）
 - Register auto-creates default group「我的项目」
+- **一项目一看板**：创建项目组时自动创建同名看板；`GET /api/groups/{id}/kanban` 直接进入看板详情
 - New boards: 待办 / 进行中 / 完成(is_done，看板不显示该列)
 - 完结任务：`status=completed`，看板仅显示 active 卡片
 - Audit all mutating API actions in handlers via `h.audit(...)`

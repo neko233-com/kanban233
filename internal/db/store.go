@@ -182,7 +182,7 @@ WHERE board_id = ? AND is_done = 0 ORDER BY position ASC`), boardID)
 		placeholders[i] = "?"
 	}
 	query := fmt.Sprintf(s.q(`
-SELECT id, column_id, title, description, position, status, completed_at, created_at, updated_at FROM cards
+SELECT `+cardSelectCols+` FROM cards
 WHERE status = ? AND column_id IN (%s) ORDER BY position ASC`), strings.Join(placeholders, ","))
 
 	args := append([]any{models.CardStatusActive}, columnIDs...)
@@ -192,22 +192,11 @@ WHERE status = ? AND column_id IN (%s) ORDER BY position ASC`), strings.Join(pla
 	}
 	defer cardRows.Close()
 
-	for cardRows.Next() {
-		var card models.Card
-		var completed sql.NullTime
-		if err := cardRows.Scan(&card.ID, &card.ColumnID, &card.Title, &card.Description, &card.Position, &card.Status, &completed, &card.CreatedAt, &card.UpdatedAt); err != nil {
-			return detail, err
-		}
-		if completed.Valid {
-			t := completed.Time
-			card.CompletedAt = &t
-		}
-		detail.Cards = append(detail.Cards, card)
+	detail.Cards, err = scanCards(cardRows)
+	if err != nil {
+		return detail, err
 	}
-	if detail.Cards == nil {
-		detail.Cards = []models.Card{}
-	}
-	return detail, cardRows.Err()
+	return detail, nil
 }
 
 func (s *Store) UpdateBoard(ctx context.Context, boardID, userID int64, title string) (*models.Board, error) {
@@ -294,53 +283,6 @@ func (s *Store) DeleteColumn(ctx context.Context, columnID, userID int64) error 
 	return nil
 }
 
-func (s *Store) CreateCard(ctx context.Context, columnID, userID int64, title, description string) (*models.Card, error) {
-	if _, err := s.getColumnWithAccess(ctx, columnID, userID); err != nil {
-		return nil, err
-	}
-
-	var position int
-	if err := s.db.QueryRowContext(ctx, s.q(`
-SELECT COALESCE(MAX(position), -1) + 1 FROM cards WHERE column_id = ?`), columnID).Scan(&position); err != nil {
-		return nil, err
-	}
-
-	now := time.Now().UTC()
-	res, err := s.db.ExecContext(ctx, s.q(`
-INSERT INTO cards (column_id, assignee_id, title, description, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`),
-		columnID, userID, title, description, position, now, now)
-	if err != nil {
-		return nil, err
-	}
-	id, err := s.insertID(ctx, res)
-	if err != nil {
-		return nil, err
-	}
-	return &models.Card{
-		ID: id, ColumnID: columnID, Title: title, Description: description,
-		Position: position, CreatedAt: now, UpdatedAt: now,
-	}, nil
-}
-
-func (s *Store) UpdateCard(ctx context.Context, cardID, userID int64, title, description string) (*models.Card, error) {
-	card, err := s.getCardWithAccess(ctx, cardID, userID)
-	if err != nil {
-		return nil, err
-	}
-	now := time.Now().UTC()
-	_, err = s.db.ExecContext(ctx, s.q(`
-UPDATE cards SET title = ?, description = ?, updated_at = ? WHERE id = ?`),
-		title, description, now, cardID)
-	if err != nil {
-		return nil, err
-	}
-	out := card.Card
-	out.Title = title
-	out.Description = description
-	out.UpdatedAt = now
-	return &out, nil
-}
-
 func (s *Store) DeleteCard(ctx context.Context, cardID, userID int64) error {
 	if _, err := s.getCardWithAccess(ctx, cardID, userID); err != nil {
 		return err
@@ -401,16 +343,12 @@ UPDATE cards SET column_id = ?, position = ?, status = ?, completed_at = ?, upda
 			return err
 		}
 
-		row := tx.QueryRowContext(ctx, s.q(`
-SELECT id, column_id, title, description, position, status, completed_at, created_at, updated_at FROM cards WHERE id = ?`), cardID)
-		var completed sql.NullTime
-		if err = row.Scan(&updated.ID, &updated.ColumnID, &updated.Title, &updated.Description, &updated.Position, &updated.Status, &completed, &updated.CreatedAt, &updated.UpdatedAt); err != nil {
+		row := tx.QueryRowContext(ctx, s.q(`SELECT `+cardSelectCols+` FROM cards WHERE id = ?`), cardID)
+		c, err := scanCard(row)
+		if err != nil {
 			return err
 		}
-		if completed.Valid {
-			t := completed.Time
-			updated.CompletedAt = &t
-		}
+		updated = c
 		return nil
 	})
 	if err != nil {

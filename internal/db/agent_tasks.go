@@ -111,5 +111,7 @@ func (s *Store) CreateAgentCard(ctx context.Context, userID int64, req models.Ag
 	if req.Category != "" {
 		title = agent.CategoryTitle(req.Category, title, req.Progress)
 	}
-	return s.CreateCard(ctx, columnID, userID, title, strings.TrimSpace(req.Description))
+	return s.CreateCard(ctx, columnID, userID, models.CreateCardRequest{
+		Title: title, Description: strings.TrimSpace(req.Description),
+	})
 }

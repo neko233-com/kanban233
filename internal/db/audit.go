@@ -19,6 +19,14 @@ func (s *Store) ListAuditLogs(ctx context.Context, limit, offset int) ([]models.
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
+	return s.listAuditLogs(ctx, limit, offset)
+}
+
+func (s *Store) ExportAuditLogs(ctx context.Context) ([]models.AuditLog, error) {
+	return s.listAuditLogs(ctx, 10000, 0)
+}
+
+func (s *Store) listAuditLogs(ctx context.Context, limit, offset int) ([]models.AuditLog, error) {
 	rows, err := s.db.QueryContext(ctx, s.q(`
 SELECT a.id, a.user_id, u.username, a.action, a.resource_type, a.resource_id, a.detail, a.ip, a.created_at
 FROM audit_logs a

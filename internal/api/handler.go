@@ -1,12 +1,15 @@
 package api
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/neko233/kanban233/internal/auth"
 	"github.com/neko233/kanban233/internal/config"
@@ -19,6 +22,7 @@ type Handler struct {
 	auth        *auth.Service
 	agent       config.AgentConfig
 	defaultUser config.DefaultUserConfig
+	dev         bool
 }
 
 func NewHandler(store *db.Store, authSvc *auth.Service, cfg *config.Config) *Handler {
@@ -27,6 +31,7 @@ func NewHandler(store *db.Store, authSvc *auth.Service, cfg *config.Config) *Han
 		auth:        authSvc,
 		agent:       cfg.Agent,
 		defaultUser: cfg.Auth.DefaultUser,
+		dev:         cfg.Server.Dev,
 	}
 }
 
@@ -44,7 +49,10 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/groups/{id}/history", h.withAuth(h.handleGroupHistory))
 
 	mux.HandleFunc("GET /api/research/overview", h.withAuth(h.handleResearchOverview))
+	mux.HandleFunc("GET /api/research/stats", h.withAuth(h.handleResearchStats))
 	mux.HandleFunc("GET /api/groups", h.withAuth(h.handleListGroups))
+	mux.HandleFunc("GET /api/groups/{id}/kanban", h.withAuth(h.handleGetGroupKanban))
+	mux.HandleFunc("GET /api/groups/{id}/stats", h.withAuth(h.handleGroupStats))
 	mux.HandleFunc("GET /api/groups/{id}", h.withAuth(h.handleGetGroup))
 	mux.HandleFunc("PUT /api/groups/{id}", h.withAuth(h.handleUpdateGroup))
 	mux.HandleFunc("DELETE /api/groups/{id}", h.withAuth(h.handleDeleteGroup))
@@ -58,6 +66,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/groups", h.withAuth(h.handleCreateGroup))
 	mux.HandleFunc("GET /api/boards/{id}/history", h.withAuth(h.handleBoardHistory))
 	mux.HandleFunc("POST /api/cards/{id}/complete", h.withAuth(h.handleCompleteCard))
+	mux.HandleFunc("POST /api/cards/{id}/archive", h.withAuth(h.handleArchiveCard))
 	mux.HandleFunc("POST /api/boards/import", h.withAuth(h.handleImportBoard))
 
 	mux.HandleFunc("GET /api/export/all", h.withAuth(h.handleExportAll))
@@ -72,6 +81,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/cards/{id}/move", h.withAuth(h.handleMoveCard))
 
 	mux.HandleFunc("GET /api/audit-logs", h.withAuth(h.handleListAuditLogs))
+	mux.HandleFunc("GET /api/audit-logs/export", h.withAuth(h.handleExportAuditLogs))
 	h.registerAgent(mux)
 }
 
@@ -117,6 +127,7 @@ func (h *Handler) handleConfig(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"registration_open": h.auth.RegistrationOpen(),
 		"default_join_mode": models.JoinModeFree,
+		"dev":               h.dev,
 	})
 }
 
@@ -202,6 +213,24 @@ func (h *Handler) handleCreateGroup(w http.ResponseWriter, r *http.Request, user
 	}
 	h.audit(r, userID, "create", "project_group", group.ID, group.Name)
 	writeJSON(w, http.StatusCreated, group)
+}
+
+func (h *Handler) handleGetGroupKanban(w http.ResponseWriter, r *http.Request, userID int64) {
+	groupID, err := pathID(r, "id")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid group id")
+		return
+	}
+	detail, err := h.store.EnsureGroupKanbanDetail(r.Context(), groupID, userID)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) || errors.Is(err, db.ErrForbidden) {
+			writeError(w, http.StatusNotFound, "not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	writeJSON(w, http.StatusOK, detail)
 }
 
 func (h *Handler) handleGetGroup(w http.ResponseWriter, r *http.Request, userID int64) {
@@ -367,6 +396,44 @@ func (h *Handler) handleResearchOverview(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	writeJSON(w, http.StatusOK, overview)
+}
+
+func (h *Handler) handleResearchStats(w http.ResponseWriter, r *http.Request, userID int64) {
+	stats, err := h.store.GetResearchStats(r.Context(), userID)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, stats)
+}
+
+func (h *Handler) handleGroupStats(w http.ResponseWriter, r *http.Request, userID int64) {
+	groupID, err := pathID(r, "id")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid group id")
+		return
+	}
+	stats, err := h.store.GetGroupStats(r.Context(), groupID, userID)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, stats)
+}
+
+func (h *Handler) handleArchiveCard(w http.ResponseWriter, r *http.Request, userID int64) {
+	cardID, err := pathID(r, "id")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid card id")
+		return
+	}
+	card, err := h.store.ArchiveCard(r.Context(), cardID, userID)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	h.audit(r, userID, "archive", "card", card.ID, card.Title)
+	writeJSON(w, http.StatusOK, card)
 }
 
 func (h *Handler) handleBoardHistory(w http.ResponseWriter, r *http.Request, userID int64) {
@@ -633,7 +700,7 @@ func (h *Handler) handleCreateCard(w http.ResponseWriter, r *http.Request, userI
 		writeError(w, http.StatusBadRequest, "title required")
 		return
 	}
-	card, err := h.store.CreateCard(r.Context(), columnID, userID, req.Title, req.Description)
+	card, err := h.store.CreateCard(r.Context(), columnID, userID, req)
 	if err != nil {
 		writeStoreError(w, err)
 		return
@@ -658,7 +725,7 @@ func (h *Handler) handleUpdateCard(w http.ResponseWriter, r *http.Request, userI
 		writeError(w, http.StatusBadRequest, "title required")
 		return
 	}
-	card, err := h.store.UpdateCard(r.Context(), cardID, userID, req.Title, req.Description)
+	card, err := h.store.UpdateCard(r.Context(), cardID, userID, req)
 	if err != nil {
 		writeStoreError(w, err)
 		return
@@ -711,6 +778,54 @@ func (h *Handler) handleListAuditLogs(w http.ResponseWriter, r *http.Request, us
 		return
 	}
 	writeJSON(w, http.StatusOK, logs)
+}
+
+func (h *Handler) handleExportAuditLogs(w http.ResponseWriter, r *http.Request, userID int64) {
+	logs, err := h.store.ExportAuditLogs(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	format := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("format")))
+	if format == "" {
+		format = "json"
+	}
+	stamp := time.Now().UTC().Format("20060102-150405")
+	switch format {
+	case "csv":
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="kanban-audit-%s.csv"`, stamp))
+		w.WriteHeader(http.StatusOK)
+		cw := csv.NewWriter(w)
+		_ = cw.Write([]string{"id", "user_id", "username", "action", "resource_type", "resource_id", "detail", "ip", "created_at"})
+		for _, l := range logs {
+			_ = cw.Write([]string{
+				strconv.FormatInt(l.ID, 10),
+				strconv.FormatInt(l.UserID, 10),
+				l.Username,
+				l.Action,
+				l.ResourceType,
+				strconv.FormatInt(l.ResourceID, 10),
+				l.Detail,
+				l.IP,
+				l.CreatedAt.UTC().Format(time.RFC3339),
+			})
+		}
+		cw.Flush()
+	default:
+		payload := map[string]any{
+			"export_type": "audit_logs",
+			"exported_at": time.Now().UTC().Format(time.RFC3339),
+			"exported_by": userID,
+			"count":       len(logs),
+			"logs":        logs,
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="kanban-audit-%s.json"`, stamp))
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(payload)
+	}
+	h.audit(r, userID, "export", "audit_logs", userID, fmt.Sprintf("%d records", len(logs)))
 }
 
 func decodeJSON(r *http.Request, v any) error {

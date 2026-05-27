@@ -285,7 +285,9 @@ func (h *Handler) handleAgentUpdateCard(w http.ResponseWriter, r *http.Request) 
 	if req.Category != "" {
 		title = agent.CategoryTitle(req.Category, title, req.Progress)
 	}
-	card, err := h.store.UpdateCard(r.Context(), cardID, userID, title, strings.TrimSpace(req.Description))
+	card, err := h.store.UpdateCard(r.Context(), cardID, userID, models.UpdateCardRequest{
+		Title: title, Description: strings.TrimSpace(req.Description),
+	})
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) || errors.Is(err, db.ErrForbidden) {
 			writeError(w, http.StatusNotFound, "not found")

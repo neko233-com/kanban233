@@ -208,7 +208,14 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)`), ownerID, name, description, pub, joinMode, ne
 	if err != nil {
 		return nil, err
 	}
-	return s.GetProjectGroup(ctx, id, ownerID)
+	group, err := s.GetProjectGroup(ctx, id, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.CreateBoard(ctx, group.ID, ownerID, name); err != nil {
+		return nil, err
+	}
+	return group, nil
 }
 
 func (s *Store) GetProjectGroup(ctx context.Context, groupID, userID int64) (*models.ProjectGroup, error) {

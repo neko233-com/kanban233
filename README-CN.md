@@ -26,6 +26,12 @@
 run-dev.cmd
 ```
 
+PowerShell 请用（不要用 `&& if (...)` 这种 bash 写法）：
+
+```powershell
+.\run-dev.ps1
+```
+
 浏览器访问 http://localhost:61333
 
 默认账号：**root** / **root**（首次启动自动创建）。
@@ -148,7 +154,7 @@ Markdown 示例：
 ## CI/CD
 
 - **GitHub Actions** — 测试、构建、推送 Docker 镜像
-- **Jenkins** — 测试 → 构建 → 在 `main`/`master` 分支发布镜像（见 `Jenkinsfile`）
+- **Jenkins** — 测试 → 编译二进制并归档（无 Docker，见 `Jenkinsfile`）
 
 ## 目录结构
 
